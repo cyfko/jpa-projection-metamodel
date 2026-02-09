@@ -4,7 +4,7 @@
 
     <groupId>io.github.cyfko</groupId>
     <artifactId>jpa-projection-metamodel</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>JPA Projection Metamodel</name>
@@ -33,7 +33,7 @@
         <connection>scm:git:git://github.com/cyfko/jpa-projection-metamodel.git</connection>
         <developerConnection>scm:git:git@github.com:cyfko/jpa-projection-metamodel.git</developerConnection>
         <url>https://github.com/cyfko/jpa-projection-metamodel/tree/main</url>
-      <tag>v1.0.0</tag>
+      <tag>HEAD</tag>
   </scm>
 
     <issueManagement>
