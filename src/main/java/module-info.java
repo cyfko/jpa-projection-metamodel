@@ -1,6 +1,5 @@
 module io.github.cyfko.jpametamodel {
     requires transitive io.github.cyfko.projection;
-    requires java.compiler;
 
     uses io.github.cyfko.jpametamodel.providers.PersistenceRegistryProvider;
     uses io.github.cyfko.jpametamodel.providers.ProjectionRegistryProvider;
