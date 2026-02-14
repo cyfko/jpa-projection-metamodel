@@ -17,7 +17,6 @@ This module provides:
 ## 📋 Prerequisites
 
 - **Java 21+**
-- **Jakarta Persistence API 3.1.0+**
 
 ## 🚀 Installation
 
