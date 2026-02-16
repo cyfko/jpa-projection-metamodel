@@ -73,32 +73,30 @@ Use the `@Projection`, `@Projected`, and `@Computed` annotations:
         @Provider(value = UserComputations.class)
     }
 )
-public class UserDTO {
+public interface UserDTO {
     // Direct mapping with field renaming
     @Projected(from = "email")
-    private String userEmail;
+    String getUserEmail();
     
     // Nested path to an embeddable field
     @Projected(from = "address.city")
-    private String city;
+    String getCity();
     
     // Nested path to a relationship
     @Projected(from = "department.name")
-    private String departmentName;
+    String getDepartmentName();
     
     // Collection
     @Projected(from = "orders")
-    private List<OrderDTO> orders;
+    List<OrderDTO> getOrders();
     
     // Computed field depending on multiple fields
     @Computed(dependsOn = {"firstName", "lastName"})
-    private String fullName;
+    String getFullName();
     
     // Computed field depending on a single field
     @Computed(dependsOn = {"birthDate"})
-    private Integer age;
-    
-    // Getters and setters...
+    Integer getAge();
 }
 ```
 
@@ -138,12 +136,12 @@ public class ExternalComputer {
 }
 
 @Projection(from = User.class)
-public class UserDTO {
+public interface UserDTO {
     @Computed(
         dependsOn = {"firstName", "lastName"}, 
         computedBy = @MethodReference(type = ExternalComputer.class, method = "joinNames")
     )
-    private String displayName;
+    String getDisplayName();
 }
 ```
 
@@ -211,13 +209,13 @@ The processor automatically detects collections and extracts their metadata:
 
 ```java
 @Projection(from = User.class)
-public class UserDTO {
+public interface UserDTO {
     
     @Projected(from = "orders")
-    private List<OrderDTO> orders;  // Entity collection
+    List<OrderDTO> getOrders();  // Entity collection
     
     @Projected(from = "tags")
-    private Set<String> tags;  // Element collection
+    Set<String> getTags();  // Element collection
 }
 ```
 
@@ -232,9 +230,9 @@ You can use Spring beans for computation providers:
         @Provider(value = DateFormatter.class, bean = "isoDateFormatter")
     }
 )
-public class UserDTO {
+public interface UserDTO {
     @Computed(dependsOn = {"createdAt"})
-    private String formattedDate;
+    String getFormattedDate();
 }
 
 @Service("isoDateFormatter")
@@ -288,21 +286,21 @@ When a dependency traverses a collection (e.g., `orders.total`), a **reducer is 
 
 ```java
 @Projection(from = Company.class, providers = @Provider(CompanyComputers.class))
-public class CompanyDTO {
+public interface CompanyDTO {
     // Single collection dependency with SUM reducer
     @Computed(dependsOn = {"orders.amount"}, reducers = {"SUM"})
-    private BigDecimal totalRevenue;
+    BigDecimal getTotalRevenue();
     
     // Multiple collection dependencies with different reducers
     @Computed(
         dependsOn = {"orders.amount", "orders.items.quantity"},
         reducers = {"SUM", "COUNT"}
     )
-    private Object orderStats;
+    Object getOrderStats();
     
     // Mixed: scalar + collection (only collection needs reducer)
     @Computed(dependsOn = {"name", "orders.amount"}, reducers = {"AVG"})
-    private String summary;
+    String getSummary();
 }
 ```
 
