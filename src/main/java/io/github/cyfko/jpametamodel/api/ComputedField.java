@@ -24,7 +24,7 @@ import java.util.Objects;
  * element.</li>
  * <li>{@code reducers} must be non-null (can be empty for non-collection
  * dependencies).</li>
- * <li>{@code methodReference} is optional and may be {@code null} when
+ * <li>{@code computedBy} is optional and may be {@code null} when
  * computation
  * is resolved by convention or an external resolver.</li>
  * </ul>
@@ -63,13 +63,17 @@ import java.util.Objects;
  *                        required to compute the value
  * @param reducers        array of reducer mappings linking reducers to their
  *                        target dependency indices
- * @param methodReference optional method reference metadata describing how the
+ * @param computedBy optional method reference metadata describing how the
  *                        value is computed;
  *                        may be {@code null} if the computation is resolved
  *                        elsewhere
  */
-public record ComputedField(String dtoField, String[] dependencies, ReducerMapping[] reducers,
-        MethodReference methodReference) {
+public record ComputedField(String dtoField,
+                            String[] dependencies,
+                            ReducerMapping[] reducers,
+                            MethodReference computedBy,
+                            MethodReference transformer
+) {
 
     public ComputedField {
         Objects.requireNonNull(dtoField, "dtoField cannot be null");
@@ -100,7 +104,7 @@ public record ComputedField(String dtoField, String[] dependencies, ReducerMappi
      * @param dependencies non-empty array of dependency paths
      */
     public ComputedField(String dtoField, String[] dependencies) {
-        this(dtoField, dependencies, new ReducerMapping[0], null);
+        this(dtoField, dependencies, new ReducerMapping[0], (MethodReference) null, null);
     }
 
     /**
@@ -115,11 +119,11 @@ public record ComputedField(String dtoField, String[] dependencies, ReducerMappi
      * @param dtoField             name of the DTO property (must not be null or
      *                             blank)
      * @param dependencies         non-empty array of dependency paths
-     * @param methodReferenceClass target class declaring the compute method (must
+     * @param compBy target class declaring the compute method (must
      *                             not be null)
      */
-    public ComputedField(String dtoField, String[] dependencies, Class<?> methodReferenceClass) {
-        this(dtoField, dependencies, new ReducerMapping[0], new MethodReference(methodReferenceClass, null));
+    public ComputedField(String dtoField, String[] dependencies, Class<?> compBy) {
+        this(dtoField, dependencies, new ReducerMapping[0], new MethodReference(compBy, null), null);
     }
 
     /**
@@ -135,26 +139,7 @@ public record ComputedField(String dtoField, String[] dependencies, ReducerMappi
      * @param computeMethodName name of the compute method (must not be null)
      */
     public ComputedField(String dtoField, String[] dependencies, String computeMethodName) {
-        this(dtoField, dependencies, new ReducerMapping[0], new MethodReference(null, computeMethodName));
-    }
-
-    /**
-     * Creates a computed field whose value is computed by a specific method on a
-     * specific class.
-     *
-     * @param dtoField             name of the DTO property (must not be null or
-     *                             blank)
-     * @param dependencies         non-empty array of dependency paths
-     * @param methodReferenceClass target class declaring the compute method (may be
-     *                             {@code null}
-     *                             if resolved elsewhere)
-     * @param computeMethodName    name of the compute method (may be {@code null}
-     *                             if resolved by convention)
-     */
-    public ComputedField(String dtoField, String[] dependencies, Class<?> methodReferenceClass,
-            String computeMethodName) {
-        this(dtoField, dependencies, new ReducerMapping[0],
-                new MethodReference(methodReferenceClass, computeMethodName));
+        this(dtoField, dependencies, new ReducerMapping[0], new MethodReference(null, computeMethodName), null);
     }
 
     /**
@@ -165,28 +150,7 @@ public record ComputedField(String dtoField, String[] dependencies, ReducerMappi
      * @param reducers     array of reducer mappings
      */
     public ComputedField(String dtoField, String[] dependencies, ReducerMapping[] reducers) {
-        this(dtoField, dependencies, reducers, null);
-    }
-
-    /**
-     * Creates a computed field with reducer mappings and explicit method reference.
-     * <p>
-     * This constructor is typically used by generated code.
-     * </p>
-     *
-     * @param dtoField             name of the DTO property (must not be null or
-     *                             blank)
-     * @param dependencies         non-empty array of dependency paths
-     * @param reducers             array of reducer mappings
-     * @param methodReferenceClass target class declaring the compute method
-     * @param computeMethodName    name of the compute method
-     */
-    public ComputedField(String dtoField, String[] dependencies, ReducerMapping[] reducers,
-            Class<?> methodReferenceClass, String computeMethodName) {
-        this(dtoField, dependencies, reducers,
-                (methodReferenceClass != null || computeMethodName != null)
-                        ? new MethodReference(methodReferenceClass, computeMethodName)
-                        : null);
+        this(dtoField, dependencies, reducers, (MethodReference) null, null);
     }
 
     /**
@@ -202,7 +166,7 @@ public record ComputedField(String dtoField, String[] dependencies, ReducerMappi
      * Metadata describing the Java method used to compute a {@link ComputedField}.
      * <p>
      * Both components are optional individually, but at least one of
-     * {@code targetClass}
+     * {@code owner}
      * or {@code methodName} must be non-null. This allows:
      * </p>
      * <ul>
@@ -211,18 +175,18 @@ public record ComputedField(String dtoField, String[] dependencies, ReducerMappi
      * <li>a fully specified {@code (class, method)} pair.</li>
      * </ul>
      *
-     * @param targetClass target class holding the compute method, or {@code null}
+     * @param owner target class holding the compute method, or {@code null}
      *                    if resolved elsewhere
      * @param methodName  name of the compute method, or {@code null} if resolved by
      *                    convention
      */
     public record MethodReference(
-            Class<?> targetClass, // target class, or null
+            Class<?> owner, // target class, or null
             String methodName // method name, or null
     ) {
         public MethodReference {
-            if (targetClass == null && methodName == null) {
-                throw new IllegalArgumentException("targetClass and methodName cannot be null at the same time");
+            if (owner == null || methodName == null) {
+                throw new IllegalArgumentException("neither method or owning class can be null.");
             }
         }
     }

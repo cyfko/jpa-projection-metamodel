@@ -23,16 +23,12 @@ class ComputedFieldTest {
         assertThrows(IllegalArgumentException.class,
                 () -> new ComputedField("field", new String[] { "truc" }, (Class<?>) null));
 
-        // Empty reducers with null methodReference is valid
+        // Empty reducers with null computedBy is valid
         assertDoesNotThrow(
-                () -> new ComputedField("field", new String[] { "truc" }, new ComputedField.ReducerMapping[0], null));
-
-        assertDoesNotThrow(() -> new ComputedField("field", new String[] { "truc" }, Object.class, null));
-
-        assertDoesNotThrow(() -> new ComputedField("field", new String[] { "x" }, null, "smth"));
+                () -> new ComputedField("field", new String[] { "truc" }, new ComputedField.ReducerMapping[0], (ComputedField.MethodReference) null, null));
 
         assertDoesNotThrow(() -> new ComputedField("field", new String[] { "something" },
-                new ComputedField.ReducerMapping[0], null));
+                new ComputedField.ReducerMapping[0], (ComputedField.MethodReference) null, null));
     }
 
     @Test

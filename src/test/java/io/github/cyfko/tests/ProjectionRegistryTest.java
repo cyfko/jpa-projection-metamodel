@@ -1041,11 +1041,11 @@ class ProjectionRegistryTest {
 //     * Note: This requires the class to be available in the classpath.
 //     * For integration tests, we use the actual test data classes.
 //     */
-//    private Class<?> loadClass(String targetClass) {
+//    private Class<?> loadClass(String owner) {
 //        try {
-//            return Class.forName(targetClass);
+//            return Class.forName(owner);
 //        } catch (ClassNotFoundException e) {
-//            throw new RuntimeException("Failed to load class: " + targetClass +
+//            throw new RuntimeException("Failed to load class: " + owner +
 //                ". Make sure the class is compiled and in the classpath.", e);
 //        }
 //    }
