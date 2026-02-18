@@ -15,6 +15,9 @@ public enum CollectionType {
     
     /** java.util.Collection (generic) */
     COLLECTION,
+
+    /** T[] */
+    ARRAY,
     
     /** Unknown or unsupported collection type */
     UNKNOWN

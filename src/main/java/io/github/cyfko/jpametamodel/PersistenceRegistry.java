@@ -112,6 +112,59 @@ public final class PersistenceRegistry {
     }
 
     /**
+     * Resolves the Java type of a field path within an entity.
+     * <p>
+     * Supports dotted paths through embeddables, related entities, and collections.
+     * For collection segments, navigation continues into the element type.
+     * </p>
+     *
+     * Examples:
+     * <pre>{@code
+     *   getFieldType(User.class, "id")                        // → Long.class
+     *   getFieldType(User.class, "address.city")              // → String.class  (address is @Embeddable)
+     *   getFieldType(User.class, "department.employees.salary") // → BigDecimal.class
+     * }</pre>
+     *
+     * @param rootEntity the root entity class
+     * @param fieldPath  dot-separated field path (e.g. "address.city")
+     * @return the resolved {@link Class} of the terminal field
+     * @throws IllegalArgumentException if any segment of the path cannot be resolved
+     */
+    public static Class<?> getFieldType(Class<?> rootEntity, String fieldPath) {
+        Objects.requireNonNull(rootEntity,  "rootEntity cannot be null");
+        Objects.requireNonNull(fieldPath,   "fieldPath cannot be null");
+
+        String[] segments = fieldPath.split("\\.");
+        Class<?> currentType = rootEntity;
+
+        for (String segment : segments) {
+            // Récupère les métadonnées du type courant (entité ou embeddable)
+            Map<String, PersistenceMetadata> metadata = getMetadataFor(currentType);
+
+            if (metadata == null) {
+                throw new IllegalArgumentException(
+                        "Type '%s' is not a registered entity or embeddable (reached while resolving '%s' in path '%s')"
+                                .formatted(currentType.getSimpleName(), segment, fieldPath)
+                );
+            }
+
+            PersistenceMetadata fieldMeta = metadata.get(segment);
+
+            if (fieldMeta == null) {
+                throw new IllegalArgumentException(
+                        "Field '%s' not found in '%s' (full path: '%s')"
+                                .formatted(segment, currentType.getSimpleName(), fieldPath)
+                );
+            }
+
+            // relatedType = type de l'élément (pour les collections, c'est le type de l'élément)
+            currentType = fieldMeta.relatedType();
+        }
+
+        return currentType;
+    }
+
+    /**
      * Checks if the specified entity class is registered in the metadata registry.
      *
      * @param entityClass the entity class to check
