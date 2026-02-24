@@ -11,22 +11,32 @@ import io.github.cyfko.jpametamodel.providers.ProjectionRegistryProvider;
 import java.util.*;
 
 /**
- * Centralized utility class serving as a unified registry for handling projection metadata within the JPA context.
+ * Centralized utility class serving as a unified registry for handling
+ * projection metadata within the JPA context.
  * <p>
- * This class provides thread-safe access to the generated projection metadata registry implementation,
- * enabling retrieval and translation of DTO projection fields to their corresponding entity paths.
+ * This class provides thread-safe access to the generated projection metadata
+ * registry implementation,
+ * enabling retrieval and translation of DTO projection fields to their
+ * corresponding entity paths.
  * It also caches path mappings to optimize repeated queries.
  * </p>
  *
- * <p>This registry supports:</p>
+ * <p>
+ * This registry supports:
+ * </p>
  * <ul>
- *     <li>Lazy and thread-safe loading of the {@link ProjectionRegistryProvider} implementation via reflection.</li>
- *     <li>Retrieval of projection metadata for Data Transfer Object (DTO) classes.</li>
- *     <li>Determination of required entity fields for projections.</li>
- *     <li>Conversion of DTO projection field paths to fully qualified entity paths, respecting case sensitivity.</li>
+ * <li>Lazy and thread-safe loading of the {@link ProjectionRegistryProvider}
+ * implementation via reflection.</li>
+ * <li>Retrieval of projection metadata for Data Transfer Object (DTO)
+ * classes.</li>
+ * <li>Determination of required entity fields for projections.</li>
+ * <li>Conversion of DTO projection field paths to fully qualified entity paths,
+ * respecting case sensitivity.</li>
  * </ul>
  *
- * <p>This utility class cannot be instantiated and exposes only static methods.</p>
+ * <p>
+ * This utility class cannot be instantiated and exposes only static methods.
+ * </p>
  *
  * @author Frank KOSSI
  * @since 1.0.0
@@ -34,12 +44,14 @@ import java.util.*;
 public final class ProjectionRegistry {
 
     /**
-     * Volatile instance of the projection metadata registry provider implementing the registry access.
+     * Volatile instance of the projection metadata registry provider implementing
+     * the registry access.
      */
     private static volatile ProjectionRegistryProvider PROVIDER;
 
     /**
-     * Cache storing precomputed mappings from DTO projection paths to entity paths per DTO class.
+     * Cache storing precomputed mappings from DTO projection paths to entity paths
+     * per DTO class.
      */
     private static final Map<Class<?>, Map<String, String>> PROJECTION_TO_ENTITY_PATH_MAPPINGS_CACHE = new HashMap<>();
 
@@ -55,11 +67,14 @@ public final class ProjectionRegistry {
     /**
      * Returns the singleton instance of the projection metadata registry provider.
      * <p>
-     * This method lazily loads the provider using double-checked locking to ensure thread-safe initialization.
+     * This method lazily loads the provider using double-checked locking to ensure
+     * thread-safe initialization.
      * </p>
      *
-     * @return the {@link ProjectionRegistryProvider} instance providing projection metadata access
-     * @throws IllegalStateException if the implementation class cannot be loaded or instantiated
+     * @return the {@link ProjectionRegistryProvider} instance providing projection
+     *         metadata access
+     * @throws IllegalStateException if the implementation class cannot be loaded or
+     *                               instantiated
      */
     public static ProjectionRegistryProvider getProvider() {
         // 1. Si on a déjà chargé le provider, on le retourne directement (Cache)
@@ -90,28 +105,29 @@ public final class ProjectionRegistry {
         } catch (Exception e) {
             throw new IllegalStateException(
                     "Cannot load metadata registry: ProjectionRegistryProviderImpl class not found. " +
-                    "Ensure that the annotation processor has run and generated the registry class. " +
-                    "Check that 'io.github.cyfko:jpa-metamodel-processor' is configured as an annotation processor.",
-                    e
-            );
+                            "Ensure that the annotation processor has run and generated the registry class. " +
+                            "Check that 'io.github.cyfko:jpa-metamodel-processor' is configured as an annotation processor.",
+                    e);
         }
     }
 
     /**
-     * Retrieves the {@link ProjectionMetadata} associated with the provided DTO projection class.
+     * Retrieves the {@link ProjectionMetadata} associated with the provided DTO
+     * projection class.
      * <p>
-     * If explicit projection metadata does not exist for the given class, but the class is a registered JPA entity,
-     * this method generates and returns an implicit {@link ProjectionMetadata} by treating all entity fields as direct projection fields.
-     * This allows seamless support for ad-hoc projections on existing entity classes without requiring explicit DTO registration.
+     * If explicit projection metadata does not exist for the given class, but the
+     * class is a registered JPA entity,
+     * this method generates and returns an implicit {@link ProjectionMetadata} by
+     * treating all entity fields as direct projection fields.
+     * This allows seamless support for ad-hoc projections on existing entity
+     * classes without requiring explicit DTO registration.
      * </p>
      *
-     * @param dtoClass the DTO projection class or JPA entity class for which metadata is requested
-     * @return the corresponding {@link ProjectionMetadata} if registered, or a synthesized instance reflecting
-     * the entity structure if the class is a registered entity; returns {@code null} if no relevant metadata is available
+     * <p>
+     *   <b>Example:</b>
+     * </p>
      *
-     * @example
-     * <pre>
-     * {@code
+     * <pre>{@code
      * // Case 1: DTO class with registered projection metadata
      * ProjectionMetadata userMeta = ProjectionRegistry.getMetadataFor(UserDTO.class);
      * // Returns registered metadata for UserDTO, allowing mapping of custom DTO fields to entity fields
@@ -122,8 +138,14 @@ public final class ProjectionRegistry {
      *
      * // Example for an entity with collections:
      * // If UserEntity has List<Role> roles; the metadata will include a mapping for "roles" with the appropriate collection kind/type.
-     * }
-     * </pre>
+     * }</pre>
+     *
+     * @param dtoClass the DTO projection class or JPA entity class for which
+     *                 metadata is requested
+     * @return the corresponding {@link ProjectionMetadata} if registered, or a
+     *         synthesized instance reflecting
+     *         the entity structure if the class is a registered entity; returns
+     *         {@code null} if no relevant metadata is available
      */
     public static ProjectionMetadata getMetadataFor(Class<?> dtoClass) {
         ProjectionMetadata projectionMetadata = getProvider().getProjectionMetadataRegistry().get(dtoClass);
@@ -136,15 +158,20 @@ public final class ProjectionRegistry {
     }
 
     /**
-     * Produces an implicit {@link ProjectionMetadata} instance by transforming the entity's persistence metadata.
+     * Produces an implicit {@link ProjectionMetadata} instance by transforming the
+     * entity's persistence metadata.
      * <p>
-     * Each persistent property of the entity is mapped as a direct projection using the same field name for both DTO and entity.
-     * Collection fields are annotated with their collection-specific metadata if present.
-     * This method is used for JPA entity classes that do not have explicit projection metadata, enabling default, field-for-field projections.
+     * Each persistent property of the entity is mapped as a direct projection using
+     * the same field name for both DTO and entity.
+     * Collection fields are annotated with their collection-specific metadata if
+     * present.
+     * This method is used for JPA entity classes that do not have explicit
+     * projection metadata, enabling default, field-for-field projections.
      * </p>
      *
      * @param entityClass a class known to be a JPA entity
-     * @return an implicit {@link ProjectionMetadata} instance mapping all entity fields as direct projection fields
+     * @return an implicit {@link ProjectionMetadata} instance mapping all entity
+     *         fields as direct projection fields
      */
     private static ProjectionMetadata getImplicitProjectionMetadataFromEntity(Class<?> entityClass) {
         Map<String, PersistenceMetadata> persistenceMetadata = PersistenceRegistry.getMetadataFor(entityClass);
@@ -164,27 +191,31 @@ public final class ProjectionRegistry {
                     return new DirectMapping(fieldName,
                             fieldName,
                             metadata.relatedType(),
-                            Optional.ofNullable(collectionMetadata)
-                    );
+                            Optional.ofNullable(collectionMetadata));
                 }).toArray(DirectMapping[]::new);
 
-        return new ProjectionMetadata(entityClass, directMappings, new ComputedField[]{}, new ComputationProvider[]{});
+        return new ProjectionMetadata(entityClass, directMappings, new ComputedField[] {},
+                new ComputationProvider[] {});
     }
 
     /**
-     * Checks whether a projection metadata entry exists for the specified DTO projection class.
+     * Checks whether a projection metadata entry exists for the specified DTO
+     * projection class.
      *
      * @param dtoClass the DTO projection class to check
-     * @return {@code true} if metadata for the class exists, {@code false} otherwise
+     * @return {@code true} if metadata for the class exists, {@code false}
+     *         otherwise
      */
     public static boolean hasProjection(Class<?> dtoClass) {
         return getProvider().getProjectionMetadataRegistry().containsKey(dtoClass);
     }
 
     /**
-     * Returns a list of all required entity fields that the projection for the specified DTO class depends on.
+     * Returns a list of all required entity fields that the projection for the
+     * specified DTO class depends on.
      * <p>
-     * This list includes all entity attributes needed for fully populating the DTO projection.
+     * This list includes all entity attributes needed for fully populating the DTO
+     * projection.
      * </p>
      *
      * @param dtoClass the DTO projection class to query
@@ -202,41 +233,38 @@ public final class ProjectionRegistry {
      * fields and direct entity field mappings defined in the projection metadata.
      * </p>
      * <p>
-     * Caching is employed to optimize repeated lookups for the same DTO class and path.
+     * Caching is employed to optimize repeated lookups for the same DTO class and
+     * path.
      * </p>
      *
-     * @param dtoPath    the projection field path in DTO format (e.g., {@code "address.city"} or {@code "fullName"})
-     * @param dtoClass   the DTO projection class context to resolve the path
-     * @param ignoreCase if {@code true}, DTO path matching is case-insensitive
-     * @return the translated entity path string corresponding to the DTO projection path
-     * @throws IllegalArgumentException if the projection path cannot be resolved to a valid entity path
+     * <p>
+     *   <b>Example:</b>
+     * </p>
      *
-     * @example
-     * <pre>
-     * {@code
+     * <pre>{@code
      * // Given the following DTO projection classes and mappings:
-     * @Projection(User.class)
-     * UserDTO {
+     * @Projection(from = User.class)
+     * public interface UserDTO {
      *     @Projected(from = "username")
-     *     String name;
+     *     String getName();
      *
      *     @Projected
-     *     AddressDTO address;
+     *     AddressDTO getAddress();
      * }
      *
      * @Projection(
-     *      entity = Address.class,
-     *      computers = @Computer(GeographyUtils.class)
+     *      from = Address.class,
+     *      providers = @Provider(GeographyUtils.class)
      * )
-     * AddressDTO {
+     * public interface AddressDTO {
      *      @Projected(from = "cityName")
-     *      String city;
+     *      String getCity();
      *
      *      @Projected(from = "streetName")
-     *      String street;
+     *      String getStreet();
      *
      *      @Computed(dependsOn = {"cityName", "streetName"})
-     *      String geographicZone;
+     *      String getGeographicZone();
      * }
      *
      * // Assume the projection metadata maps:
@@ -253,8 +281,17 @@ public final class ProjectionRegistry {
      *
      * String entityPath3 = ProjectionRegistry.toEntityPath("address.geographicZone", UserDTO.class, false);
      * // Returns "address.cityName,address.streetName"
-     * }
-     * </pre>
+     * }</pre>
+     *
+     * @param dtoPath    the projection field path in DTO format (e.g.,
+     *                   {@code "address.city"} or {@code "fullName"})
+     * @param dtoClass   the DTO projection class context to resolve the path
+     * @param ignoreCase if {@code true}, DTO path matching is case-insensitive
+     * @return the translated entity path string corresponding to the DTO projection
+     *         path
+     * @throws IllegalArgumentException if the projection path cannot be resolved to
+     *                                  a valid entity path
+     *
      */
     public static String toEntityPath(String dtoPath, Class<?> dtoClass, boolean ignoreCase) {
         synchronized (PROJECTION_TO_ENTITY_PATH_MAPPINGS_CACHE) {
@@ -286,18 +323,22 @@ public final class ProjectionRegistry {
     }
 
     /**
-     * Recursively resolves the given DTO projection path segments into the equivalent entity path.
+     * Recursively resolves the given DTO projection path segments into the
+     * equivalent entity path.
      * <p>
-     * Supports recognition of computed fields and direct mappings. Throws {@link IllegalArgumentException} if an invalid field is encountered.
+     * Supports recognition of computed fields and direct mappings. Throws
+     * {@link IllegalArgumentException} if an invalid field is encountered.
      * </p>
      *
      * @param dtoProjectionPath the projection path segment to resolve
      * @param dtoClass          the current DTO projection class context
      * @param entityPath        the builder accumulating the entity path
      * @param ignoreCase        whether to match DTO fields ignoring case
-     * @throws IllegalArgumentException if the DTO path does not resolve to a valid field mapping
+     * @throws IllegalArgumentException if the DTO path does not resolve to a valid
+     *                                  field mapping
      */
-    private static void toEntityPathRecursive(String dtoProjectionPath, Class<?> dtoClass, StringBuilder entityPath, boolean ignoreCase) {
+    private static void toEntityPathRecursive(String dtoProjectionPath, Class<?> dtoClass, StringBuilder entityPath,
+            boolean ignoreCase) {
         try {
             final ProjectionMetadata metadata = ProjectionRegistry.getMetadataFor(dtoClass);
 
@@ -347,7 +388,8 @@ public final class ProjectionRegistry {
 
             toEntityPathRecursive(dtoProjectionPath.substring(dotIndex + 1), nextDtoClass, entityPath, ignoreCase);
         } catch (Exception e) {
-            throw new IllegalArgumentException("\"" + dtoProjectionPath + "\" does not resolve to a valid projection field path.", e);
+            throw new IllegalArgumentException(
+                    "\"" + dtoProjectionPath + "\" does not resolve to a valid projection field path.", e);
         }
     }
 

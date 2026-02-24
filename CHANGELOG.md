@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.1] — Fixed documentation
+
+### Documentation
+- Improved accuracy of Javadoc to reflect true specification behavior since projection specification 2.0.0+.
+- Enhanced README.md and new sections added to describe first citizen facade classes: ProjectionRegistry and
+  PersistenceRegistry
+
 ## [2.0.0] — ComputedField API
 
 ### Breaking Changes

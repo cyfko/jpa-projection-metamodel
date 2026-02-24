@@ -9,7 +9,7 @@
 
 This module provides:
 
-- **Projection annotations**: `@Projection`, `@Projected`, `@Computed`, `@Provider`, `@MethodReference`
+- **Projection annotations**: `@Projection`, `@Projected`, `@Computed`, `@Provider`, `@Method`
 - **Runtime registry APIs**: `PersistenceRegistry` and `ProjectionRegistry`
 - **Metadata interfaces**: Type-safe access to entity and projection metadata
 - **Computation support**: Integration of computation providers for derived fields
@@ -26,7 +26,7 @@ This module provides:
 <dependency>
     <groupId>io.github.cyfko</groupId>
     <artifactId>jpa-projection-metamodel</artifactId>
-    <version>1.0.0</version>
+    <version>2.0.1</version>
 </dependency>
 ```
 
@@ -43,21 +43,21 @@ public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    
+
     private String firstName;
     private String lastName;
     private String email;
     private LocalDate birthDate;
-    
+
     @Embedded
     private Address address;
-    
+
     @ManyToOne
     private Department department;
-    
+
     @OneToMany(mappedBy = "user")
     private List<Order> orders;
-    
+
     // Getters and setters...
 }
 ```
@@ -77,23 +77,23 @@ public interface UserDTO {
     // Direct mapping with field renaming
     @Projected(from = "email")
     String getUserEmail();
-    
+
     // Nested path to an embeddable field
     @Projected(from = "address.city")
     String getCity();
-    
+
     // Nested path to a relationship
     @Projected(from = "department.name")
     String getDepartmentName();
-    
+
     // Collection
     @Projected(from = "orders")
     List<OrderDTO> getOrders();
-    
+
     // Computed field depending on multiple fields
     @Computed(dependsOn = {"firstName", "lastName"})
     String getFullName();
-    
+
     // Computed field depending on a single field
     @Computed(dependsOn = {"birthDate"})
     Integer getAge();
@@ -101,6 +101,7 @@ public interface UserDTO {
 ```
 
 **Note:**
+
 - Only entities referenced in the `from` attribute of `@Projection` are scanned for projection purposes.
 - All fields in a class annotated with `@Projection` are implicitly considered as if annotated with `@Projected`, unless explicitly annotated otherwise.
 - **Empty projections:** A `@Projection` with no fields is valid and still registers the target entity in `PersistenceRegistry`. This can be useful as a base class for inheritance or to force registration of specific entities.
@@ -110,24 +111,26 @@ public interface UserDTO {
 Create classes containing computation methods for your `@Computed` fields. Methods can be:
 
 - **In a declared provider** (via `@Provider`)
-- **Or in any external class** accessible via `@MethodReference(type = ...)`, even if this class is not listed in the providers
+- **Or in any external class** accessible via `@Method(type = ...)`, even if this class is not listed in the providers
 
 Standard provider example:
+
 ```java
 public class UserComputations {
     // Static method for fullName
-    public static String getFullName(String firstName, String lastName) {
+    public static String toFullName(String firstName, String lastName) {
         return firstName + " " + lastName;
     }
-    
+
     // Instance method for age (can be a Spring bean)
-    public Integer getAge(LocalDate birthDate) {
+    public Integer toAge(LocalDate birthDate) {
         return Period.between(birthDate, LocalDate.now()).getYears();
     }
 }
 ```
 
 Advanced example: external static method not declared as a provider
+
 ```java
 public class ExternalComputer {
     public static String joinNames(String first, String last) {
@@ -138,60 +141,83 @@ public class ExternalComputer {
 @Projection(from = User.class)
 public interface UserDTO {
     @Computed(
-        dependsOn = {"firstName", "lastName"}, 
-        computedBy = @MethodReference(type = ExternalComputer.class, method = "joinNames")
+        dependsOn = {"firstName", "lastName"},
+        computedBy = @Method(type = ExternalComputer.class, value = "joinNames")
     )
     String getDisplayName();
 }
 ```
 
 **Resolution behavior:**
-- If `@MethodReference(type = ...)` is used, the method is searched in the specified class, even if it is not a provider.
+
+- If `@Method(type = ...)` is used, the method is searched in the specified class, even if it is not a provider.
 - Compilation fails if the method does not exist or the signature does not match.
 - Project tests validate this behavior to guarantee the expected flexibility.
 
-**Naming convention:** Methods in providers should follow the pattern `get[FieldName]` (DTO field name with the first letter capitalized), unless an explicit method is referenced via `@MethodReference`.
+**Naming convention:** Methods in providers should follow the pattern `to[FieldName]` (DTO field name with the first letter capitalized), unless an explicit method is referenced via `@Method`.
 
 ### 4. Use Registries at Runtime
 
-#### Access Entity Metadata
+The library provides two primary programmatic facades (`PersistenceRegistry` and `ProjectionRegistry`) to access the generated compile-time metadata at runtime. These registries are lazily loaded and cached for high performance.
+
+#### `PersistenceRegistry` API
+
+The `PersistenceRegistry` provides deep introspection into JPA entities and embeddables without reflection.
+
+**Core Methods:**
+
+*   **`getFieldType(Class< ?> rootEntity, String fieldPath)`:** Resolves the exact Java `Class<?>` of a given nested field path. 
+    *Example:* `getFieldType(User.class, "address.city")` returns `String.class`.
+*   **`getIdFields(Class<?> entityClass)`:** 
+    Returns a `List<String>` containing the ID field names of the entity. Supports composite primary keys inside `@Embeddable` IDs automatically.
+*   **`getMetadataFor(Class<?> entityClass)`:** 
+    Returns a `Map<String, PersistenceMetadata>` detailing every persistent property, its relationship type, and collection metadata.
+*   **`getFieldMetadata(Class<?> entityClass, String fieldName)`:** 
+    Fetches the specific `PersistenceMetadata` for a single field.
+*   **`isEntityRegistered(Class<?> clazz)`** / **`isEmbeddableRegistered(Class<?> clazz)`:** 
+    Checks if the processor successfully generated metadata for the given class.
 
 ```java
 import io.github.cyfko.jpametamodel.PersistenceRegistry;
 
-// Check if an entity is registered
-boolean isRegistered = PersistenceRegistry.isEntityRegistered(User.class);
-
-// Get metadata for an entity
-Map<String, PersistenceMetadata> metadata = PersistenceRegistry.getMetadataFor(User.class);
-
-// Get metadata for a specific field
-PersistenceMetadata fieldMeta = PersistenceRegistry.getFieldMetadata(User.class, "email");
-
-// Get ID fields of an entity
-List<String> idFields = PersistenceRegistry.getIdFields(User.class);
+if (PersistenceRegistry.isEntityRegistered(User.class)) {
+    // Resolve nested types effortlessly
+    Class<?> cityType = PersistenceRegistry.getFieldType(User.class, "address.city");
+    
+    // Retrieve Primary Key fields
+    List<String> idFields = PersistenceRegistry.getIdFields(User.class);
+}
 ```
 
-#### Access Projection Metadata
+#### `ProjectionRegistry` API
+
+The `ProjectionRegistry` is the centerpiece for translating DTO-centric operations (like API filters or sorting) down to the underlying JPA entity schema. 
+
+**Core Methods:**
+
+*   **`toEntityPath(String dtoPath, Class<?> dtoClass, boolean ignoreCase)`:**
+    The most critical method for filter translation. Converts a DTO field path into a valid JPA entity path. It traverses `@Projected` mappings, nested DTOs, and `@Computed` dependencies recursively. 
+    *Example:* `toEntityPath("userEmail", UserDTO.class, false)` returns `"email"`.
+*   **`getMetadataFor(Class<?> dtoClass)`:**
+    Retrieves the `ProjectionMetadata` object. If passed a raw JPA entity class instead of a DTO, it synthesizes an implicit 1:1 projection mapping for you dynamically.
+*   **`getRequiredEntityFields(Class<?> dtoClass)`:**
+    Returns a comprehensive `List<String>` of all entity fields necessary to fully populate the DTO. Perfect for optimizing `SELECT` queries to only fetch exactly what is needed.
+*   **`hasProjection(Class<?> dtoClass)`:**
+    Checks if explicit projection metadata was generated for the DTO.
 
 ```java
 import io.github.cyfko.jpametamodel.ProjectionRegistry;
 
-// Get metadata for a projection
-ProjectionMetadata projectionMeta = ProjectionRegistry.getMetadataFor(UserDTO.class);
-
-// Check if a projection exists
-boolean hasProjection = ProjectionRegistry.hasProjection(UserDTO.class);
-
-// Get required entity fields for a projection
-List<String> requiredFields = ProjectionRegistry.getRequiredEntityFields(UserDTO.class);
-
-// Convert a DTO path to an entity path
-String entityPath = ProjectionRegistry.toEntityPath("userEmail", UserDTO.class, false);
+// 1. Translate DTO paths to Entity paths (Used heavily by FilterQL)
+String entityPath = ProjectionRegistry.toEntityPath("userEmail", UserDTO.class, false); 
 // Returns: "email"
 
-String nestedPath = ProjectionRegistry.toEntityPath("city", UserDTO.class, false);
-// Returns: "address.city"
+String nestedPath = ProjectionRegistry.toEntityPath("address.city", UserDTO.class, false);
+// Returns: "address.cityName" (resolving @Projected annotations deeply)
+
+// 2. Query optimization
+List<String> fetchFields = ProjectionRegistry.getRequiredEntityFields(UserDTO.class);
+// Build JPA Query selecting ONLY these specific properties
 ```
 
 ## 💡 Use Cases
@@ -210,10 +236,10 @@ The processor automatically detects collections and extracts their metadata:
 ```java
 @Projection(from = User.class)
 public interface UserDTO {
-    
+
     @Projected(from = "orders")
     List<OrderDTO> getOrders();  // Entity collection
-    
+
     @Projected(from = "tags")
     Set<String> getTags();  // Element collection
 }
@@ -237,7 +263,7 @@ public interface UserDTO {
 
 @Service("isoDateFormatter")
 public class DateFormatter {
-    public String getFormattedDate(LocalDateTime createdAt) {
+    public String toFormattedDate(LocalDateTime createdAt) {
         return createdAt.format(DateTimeFormatter.ISO_DATE);
     }
 }
@@ -249,7 +275,7 @@ Support for deep paths in entity hierarchy:
 
 ```java
 @Projected(from = "department.manager.address.city")
-private String managerCity;
+String getManagerCity();
 ```
 
 ## 📝 Annotations
@@ -261,6 +287,7 @@ Annotations described here are a reminder of the [Projection Specification](http
 Class-level annotation that declares a DTO projection.
 
 **Parameters:**
+
 - `from`: The source JPA entity class (required)
 - `providers`: Array of computation providers (optional)
 
@@ -269,6 +296,7 @@ Class-level annotation that declares a DTO projection.
 Field-level annotation to map a DTO field to an entity field.
 
 **Parameters:**
+
 - `from`: The path to the entity field (optional, uses DTO field name by default)
 
 ### `@Computed`
@@ -276,9 +304,27 @@ Field-level annotation to map a DTO field to an entity field.
 Field-level annotation to declare a computed field.
 
 **Parameters:**
+
 - `dependsOn`: Array of paths to entity fields required for computation
 - `reducers`: Array of reducer names for collection dependencies (e.g., `"SUM"`, `"AVG"`, `"COUNT"`, `"MIN"`, `"MAX"`)
-- `computedBy`: Optional `@MethodReference` to specify the computation method
+- `computedBy`: Optional `@Method` to specify the computation method
+- `then`: Optional `@Method` to specify a transformation/fallback method after `computedBy`
+
+**Transformation Pipelines with `then`:**
+
+You can create a two-stage computation pipeline using `computedBy` and `then`. The result of the first computation (`computedBy`) is passed as the first argument to the `then` method:
+
+```java
+@Projection(from = User.class, providers = @Provider(UserComputed.class))
+public interface UserDTO {
+    @Computed(
+        dependsOn = "birthDate",
+        computedBy = @Method(value = "calculateAge"),
+        then = @Method(type = FormattingUtils.class, value = "formatAge")
+    )
+    String getFormattedAge();
+}
+```
 
 **Reducers for Collection Dependencies:**
 
@@ -290,14 +336,14 @@ public interface CompanyDTO {
     // Single collection dependency with SUM reducer
     @Computed(dependsOn = {"orders.amount"}, reducers = {"SUM"})
     BigDecimal getTotalRevenue();
-    
+
     // Multiple collection dependencies with different reducers
     @Computed(
         dependsOn = {"orders.amount", "orders.items.quantity"},
         reducers = {"SUM", "COUNT"}
     )
     Object getOrderStats();
-    
+
     // Mixed: scalar + collection (only collection needs reducer)
     @Computed(dependsOn = {"name", "orders.amount"}, reducers = {"AVG"})
     String getSummary();
@@ -322,6 +368,7 @@ for (ComputedField.ReducerMapping rm : field.reducers()) {
 Annotation to declare a computation provider.
 
 **Parameters:**
+
 - `value`: The provider class (required)
 - `bean`: The bean name for dependency injection (optional)
 
@@ -356,9 +403,10 @@ To fix this, you must explicitly create the package structure in your source tre
 `src/main/java/io/github/cyfko/jpametamodel/providers/impl/package-info.java`
 
 With this content:
+
 ```java
 /**
- * Placeholder package to ensure the package exists at compile-time 
+ * Placeholder package to ensure the package exists at compile-time
  * for JPMS 'opens' directive compatibility.
  */
 package io.github.cyfko.jpametamodel.providers.impl;

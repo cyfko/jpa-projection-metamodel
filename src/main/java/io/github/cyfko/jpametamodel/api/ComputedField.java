@@ -57,23 +57,26 @@ import java.util.Objects;
  *         new String[] { "SUM" });
  * }</pre>
  *
- * @param dtoField        name of the DTO property exposed to clients (must not
- *                        be null or blank)
- * @param dependencies    non-empty array of entity/projection field paths
- *                        required to compute the value
- * @param reducers        array of reducer mappings linking reducers to their
- *                        target dependency indices
- * @param computedBy optional method reference metadata describing how the
- *                        value is computed;
- *                        may be {@code null} if the computation is resolved
- *                        elsewhere
+ * @param dtoField     name of the DTO property exposed to clients (must not
+ *                     be null or blank)
+ * @param dependencies non-empty array of entity/projection field paths
+ *                     required to compute the value
+ * @param reducers     array of reducer mappings linking reducers to their
+ *                     target dependency indices
+ * @param computedBy   optional method reference metadata describing how the
+ *                     value is computed;
+ *                     may be {@code null} if the computation is resolved
+ *                     elsewhere
+ * @param transformer  optional method reference describing a secondary
+ *                     transformation
+ *                     pipeline (e.g. from {@code @Computed.then()}); may be
+ *                     {@code null}
  */
 public record ComputedField(String dtoField,
-                            String[] dependencies,
-                            ReducerMapping[] reducers,
-                            MethodReference computedBy,
-                            MethodReference transformer
-) {
+        String[] dependencies,
+        ReducerMapping[] reducers,
+        MethodReference computedBy,
+        MethodReference transformer) {
 
     public ComputedField {
         Objects.requireNonNull(dtoField, "dtoField cannot be null");
@@ -116,11 +119,11 @@ public record ComputedField(String dtoField,
      * components if not explicitly specified.
      * </p>
      *
-     * @param dtoField             name of the DTO property (must not be null or
-     *                             blank)
-     * @param dependencies         non-empty array of dependency paths
-     * @param compBy target class declaring the compute method (must
-     *                             not be null)
+     * @param dtoField     name of the DTO property (must not be null or
+     *                     blank)
+     * @param dependencies non-empty array of dependency paths
+     * @param compBy       target class declaring the compute method (must
+     *                     not be null)
      */
     public ComputedField(String dtoField, String[] dependencies, Class<?> compBy) {
         this(dtoField, dependencies, new ReducerMapping[0], new MethodReference(compBy, null), null);
@@ -175,10 +178,10 @@ public record ComputedField(String dtoField,
      * <li>a fully specified {@code (class, method)} pair.</li>
      * </ul>
      *
-     * @param owner target class holding the compute method, or {@code null}
-     *                    if resolved elsewhere
-     * @param methodName  name of the compute method, or {@code null} if resolved by
-     *                    convention
+     * @param owner      target class holding the compute method, or {@code null}
+     *                   if resolved elsewhere
+     * @param methodName name of the compute method, or {@code null} if resolved by
+     *                   convention
      */
     public record MethodReference(
             Class<?> owner, // target class, or null
