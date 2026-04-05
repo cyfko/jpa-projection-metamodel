@@ -26,7 +26,7 @@ This module provides:
 <dependency>
     <groupId>io.github.cyfko</groupId>
     <artifactId>jpa-projection-metamodel</artifactId>
-    <version>2.0.1</version>
+    <version>3.0.0</version>
 </dependency>
 ```
 
@@ -298,6 +298,8 @@ Field-level annotation to map a DTO field to an entity field.
 **Parameters:**
 
 - `from`: The path to the entity field (optional, uses DTO field name by default)
+- `as`: Logical prefix for composed criterion inheritance (optional). When the field returns a `@Projection` type, its criteria are inherited under this prefix.
+- `cycleBreak`: If `true`, excludes this field from criterion inheritance to break bidirectional cycles (default: `false`)
 
 ### `@Computed`
 
@@ -305,8 +307,7 @@ Field-level annotation to declare a computed field.
 
 **Parameters:**
 
-- `dependsOn`: Array of paths to entity fields required for computation
-- `reducers`: Array of reducer names for collection dependencies (e.g., `"SUM"`, `"AVG"`, `"COUNT"`, `"MIN"`, `"MAX"`)
+- `dependsOn`: Array of dependency paths. Each path is an entity field path, optionally suffixed with `:REDUCER` when the dependency traverses a collection (e.g., `"orders.amount:SUM"`)
 - `computedBy`: Optional `@Method` to specify the computation method
 - `then`: Optional `@Method` to specify a transformation/fallback method after `computedBy`
 
@@ -326,33 +327,34 @@ public interface UserDTO {
 }
 ```
 
-**Reducers for Collection Dependencies:**
+**Inline Reducers for Collection Dependencies:**
 
-When a dependency traverses a collection (e.g., `orders.total`), a **reducer is mandatory** to specify how to aggregate the values:
+When a dependency traverses a collection (e.g., `orders.amount`), a **reducer is mandatory** to specify how to aggregate the values. The reducer is declared **inline** as a `:SUFFIX` on the dependency path itself:
 
 ```java
 @Projection(from = Company.class, providers = @Provider(CompanyComputers.class))
 public interface CompanyDTO {
     // Single collection dependency with SUM reducer
-    @Computed(dependsOn = {"orders.amount"}, reducers = {"SUM"})
+    @Computed(dependsOn = {"orders.amount:SUM"})
     BigDecimal getTotalRevenue();
 
     // Multiple collection dependencies with different reducers
-    @Computed(
-        dependsOn = {"orders.amount", "orders.items.quantity"},
-        reducers = {"SUM", "COUNT"}
-    )
+    @Computed(dependsOn = {"orders.amount:SUM", "orders.items.quantity:COUNT"})
     Object getOrderStats();
 
-    // Mixed: scalar + collection (only collection needs reducer)
-    @Computed(dependsOn = {"name", "orders.amount"}, reducers = {"AVG"})
+    // Mixed: scalar (no reducer) + collection (with reducer)
+    @Computed(dependsOn = {"name", "orders.amount:AVG"})
     String getSummary();
 }
 ```
 
+Each dependency is **self-describing** — the reducer is co-located with the field it applies to. No separate array, no positional mapping, no risk of silent misalignment.
+
 **Available Reducers:** `SUM`, `AVG`, `COUNT`, `COUNT_DISTINCT`, `MIN`, `MAX`
 
 **Runtime API:**
+
+At runtime, the processor splits `"orders.amount:SUM"` into a clean path and a `ReducerMapping`. The `ComputedField` record stores clean paths in `dependencies[]` and reducers in `reducers[]`:
 
 ```java
 ComputedField field = ...;
@@ -371,6 +373,70 @@ Annotation to declare a computation provider.
 
 - `value`: The provider class (required)
 - `bean`: The bean name for dependency injection (optional)
+
+## 🔍 Exposure Layer
+
+### `ExposedCriterion`
+
+Runtime metadata for a queryable criterion, declared directly via `@ExposedAs` or inherited through composed criterion inheritance.
+
+```java
+import io.github.cyfko.jpametamodel.api.ExposedCriterion;
+
+ExposedCriterion criterion = new ExposedCriterion(
+    "SOURCE_SITE__SITE_NAME",     // composed ref
+    "sourceSite.name",            // entity path
+    new String[]{"EQ", "MATCHES"},// supported operators
+    true,                         // exposed to consumers
+    true                          // composed (inherited)
+);
+
+criterion.isComposed();       // true
+criterion.compositionDepth(); // 1
+criterion.refSegments();      // ["SOURCE_SITE", "SITE_NAME"]
+criterion.supportsOperator("EQ"); // true
+```
+
+### `ExposureMetadata`
+
+Runtime metadata for a queryable resource declaration (`@Exposure` annotation).
+
+```java
+import io.github.cyfko.jpametamodel.api.ExposureMetadata;
+
+ExposureMetadata exposure = new ExposureMetadata(
+    "products",   // resource name
+    "catalog",    // namespace
+    "WINDOWED"    // strategy
+);
+
+exposure.isWindowed();    // true
+exposure.hasNamespace();  // true
+```
+
+### Accessing Exposure Data via `ProjectionMetadata`
+
+```java
+import io.github.cyfko.jpametamodel.ProjectionRegistry;
+import io.github.cyfko.jpametamodel.api.ProjectionMetadata;
+
+ProjectionMetadata metadata = ProjectionRegistry.getMetadataFor(ProductDTO.class);
+
+// Check if exposed as a queryable resource
+if (metadata.isExposed()) {
+    ExposureMetadata exposure = metadata.exposure();
+    // exposure.value(), exposure.namespace(), exposure.strategy()
+}
+
+// Get all composed criteria
+List<ExposedCriterion> composed = metadata.getComposedCriteria();
+
+// Find a specific criterion
+Optional<ExposedCriterion> criterion = metadata.getCriterion("SOURCE_SITE__SITE_NAME", false);
+
+// Get projection-type mappings (fields returning another @Projection)
+List<DirectMapping> projections = metadata.getProjectionMappings();
+```
 
 ## 📦 Java Modules (JPMS) Configuration
 

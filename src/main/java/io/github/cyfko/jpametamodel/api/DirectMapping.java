@@ -16,6 +16,12 @@ import java.util.Optional;
  * <p>
  * If the DTO field represents a collection, additional metadata about the collection kind and type may be provided.
  * </p>
+ * <p>
+ * When the DTO field returns a type that is itself annotated with {@code @Projection}, the {@code logicalPrefix}
+ * captures the value of {@code @Projected(as)} (or a name derived from the method name). This prefix is used
+ * for composed criterion inheritance, where queryable properties of the nested projection are inherited under
+ * this prefix joined by the {@code __} separator.
+ * </p>
  *
  * <p><b>Example usage:</b></p>
  * <pre>
@@ -36,31 +42,56 @@ import java.util.Optional;
  *     Optional.empty()
  * );
  *
- * // Collection field mapping with metadata:
- * CollectionMetadata collectionMetadata = DirectMapping.CollectionMetadata.of(CollectionKind.LIST, CollectionType.PERSISTENT);
- * DirectMapping collectionMapping = new DirectMapping(
- *     "tags",
- *     "tagEntities",
- *     java.lang.String.class,
- *     Optional.of(collectionMetadata)
+ * // Composed projection mapping (returns another @Projection type):
+ * DirectMapping composedMapping = new DirectMapping(
+ *     "sourceSite",
+ *     "sourceSite",
+ *     SiteDTO.class,
+ *     Optional.empty(),
+ *     Optional.of("SOURCE_SITE"),
+ *     false
  * );
  * }
  * </pre>
  *
- * @param dtoField      the name of the field in the DTO projection
- * @param entityField   the path to the corresponding field in the entity, supporting nested paths via dot notation
- * @param dtoFieldType  the {@link Class} type of the DTO field (or collection element type if the field is a collection).
- * @param collection    optional metadata describing collection properties of the DTO field, if applicable
+ * @param dtoField       the name of the field in the DTO projection
+ * @param entityField    the path to the corresponding field in the entity, supporting nested paths via dot notation
+ * @param dtoFieldType   the {@link Class} type of the DTO field (or collection element type if the field is a collection)
+ * @param collection     optional metadata describing collection properties of the DTO field, if applicable
+ * @param logicalPrefix  optional logical prefix for composed criterion inheritance, from {@code @Projected(as)}.
+ *                       Present only when {@code dtoFieldType} is itself a {@code @Projection} type.
+ *                       Must not contain {@code __}, nor start or end with {@code _}.
+ * @param cycleBreak     if {@code true}, this mapping is excluded from composed criterion inheritance
+ *                       to break bidirectional cycles. Corresponds to {@code @Projected(cycleBreak = true)}.
  * @author Frank KOSSI
  * @since 1.0.0
  */
-public record DirectMapping(String dtoField, String entityField, Class<?> dtoFieldType, Optional<CollectionMetadata> collection) {
+public record DirectMapping(String dtoField, String entityField, Class<?> dtoFieldType,
+                            Optional<CollectionMetadata> collection,
+                            Optional<String> logicalPrefix,
+                            boolean cycleBreak) {
+
+    /**
+     * Convenience constructor for scalar mappings without composition metadata.
+     * <p>
+     * Sets {@code logicalPrefix} to {@link Optional#empty()} and {@code cycleBreak} to {@code false}.
+     * </p>
+     *
+     * @param dtoField     the name of the field in the DTO projection
+     * @param entityField  the path to the corresponding field in the entity
+     * @param dtoFieldType the {@link Class} type of the DTO field
+     * @param collection   optional collection metadata
+     */
+    public DirectMapping(String dtoField, String entityField, Class<?> dtoFieldType, Optional<CollectionMetadata> collection) {
+        this(dtoField, entityField, dtoFieldType, collection, Optional.empty(), false);
+    }
 
     public DirectMapping {
         Objects.requireNonNull(dtoField, "dtoField cannot be null");
         Objects.requireNonNull(entityField, "entityField cannot be null");
         Objects.requireNonNull(dtoFieldType, "dtoFieldType cannot be null");
         Objects.requireNonNull(collection, "collection cannot be null");
+        Objects.requireNonNull(logicalPrefix, "logicalPrefix cannot be null (use Optional.empty())");
 
         if (dtoField.isBlank()) {
             throw new IllegalArgumentException("dtoField cannot be blank");
@@ -68,9 +99,34 @@ public record DirectMapping(String dtoField, String entityField, Class<?> dtoFie
         if (entityField.isBlank()) {
             throw new IllegalArgumentException("entityField cannot be blank");
         }
-        if (dtoFieldType == null) {
-            throw new IllegalArgumentException("dtoFieldType cannot be blank");
-        }
+
+        logicalPrefix.ifPresent(prefix -> {
+            if (prefix.isBlank()) {
+                throw new IllegalArgumentException("logicalPrefix cannot be blank when present");
+            }
+            if (prefix.contains("__")) {
+                throw new IllegalArgumentException(
+                        "logicalPrefix \"" + prefix + "\" must not contain \"__\" — reserved as composition level separator");
+            }
+            if (prefix.startsWith("_")) {
+                throw new IllegalArgumentException(
+                        "logicalPrefix \"" + prefix + "\" must not start with \"_\"");
+            }
+            if (prefix.endsWith("_")) {
+                throw new IllegalArgumentException(
+                        "logicalPrefix \"" + prefix + "\" must not end with \"_\"");
+            }
+        });
+    }
+
+    /**
+     * Indicates whether this mapping targets a composed projection type
+     * (i.e., the DTO field returns another {@code @Projection} type).
+     *
+     * @return {@code true} if a logical prefix is present, indicating a composed projection
+     */
+    public boolean isProjectionType() {
+        return logicalPrefix.isPresent();
     }
 
     /**

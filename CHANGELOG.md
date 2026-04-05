@@ -1,5 +1,93 @@
 # Changelog
 
+## [3.0.0] — Exposure Layer & Composed Criterion Inheritance
+
+### Breaking Changes
+
+#### `DirectMapping` record — new `logicalPrefix` and `cycleBreak` components
+The `DirectMapping` record now has **6 components** instead of 4:
+
+```java
+// Before
+record DirectMapping(String dtoField, String entityField, Class<?> dtoFieldType, Optional<CollectionMetadata> collection)
+
+// After
+record DirectMapping(String dtoField, String entityField, Class<?> dtoFieldType, Optional<CollectionMetadata> collection, Optional<String> logicalPrefix, boolean cycleBreak)
+```
+
+- `logicalPrefix` (`Optional<String>`) — captures `@Projected(as)` for composed criterion inheritance. Present when the DTO field returns another `@Projection` type. Validated: must not contain `__`, nor start/end with `_`.
+- `cycleBreak` (`boolean`) — if `true`, excludes this mapping from criterion inheritance to break bidirectional cycles.
+- A **convenience constructor** with the old 4-argument signature is provided, defaulting to `Optional.empty()` and `false`.
+- New method: `isProjectionType()` — returns `true` if `logicalPrefix` is present.
+
+#### `ProjectionMetadata` record — new `exposedCriteria` and `exposure` components
+The `ProjectionMetadata` record now has **6 components** instead of 4:
+
+```java
+// Before
+record ProjectionMetadata(Class<?> entityClass, DirectMapping[] directMappings, ComputedField[] computedFields, ComputationProvider[] computers)
+
+// After
+record ProjectionMetadata(Class<?> entityClass, DirectMapping[] directMappings, ComputedField[] computedFields, ComputationProvider[] computers, ExposedCriterion[] exposedCriteria, ExposureMetadata exposure)
+```
+
+- `exposedCriteria` (`ExposedCriterion[]`) — queryable criteria (both direct and composed via inheritance). Cannot be null.
+- `exposure` (`ExposureMetadata`) — resource exposure declaration from `@Exposure`. Nullable (null = no `@Exposure`).
+- A **convenience constructor** with the old 4-argument signature is provided, defaulting to `new ExposedCriterion[]{}` and `null`.
+
+---
+
+### Added
+
+#### New record: `ExposedCriterion`
+Runtime metadata for a queryable criterion, either declared directly via `@ExposedAs` or inherited through composed criterion inheritance from a nested `@Projection` type.
+
+```java
+public record ExposedCriterion(String ref, String sourcePath, String[] operators, boolean exposed, boolean composed)
+```
+
+Key methods: `isComposed()`, `compositionDepth()`, `refSegments()`, `supportsOperator(String)`.
+
+#### New record: `ExposureMetadata`
+Runtime metadata for a resource exposure declaration (`@Exposure` annotation).
+
+```java
+public record ExposureMetadata(String value, String namespace, String strategy)
+```
+
+Key methods: `hasNamespace()`, `isWindowed()`, `isFull()`, `isCustom()`.
+
+#### New methods on `ProjectionMetadata`
+- `getComposedCriteria()` — returns only composed (inherited) criteria
+- `getProjectionMappings()` — returns direct mappings whose type is a `@Projection`
+- `getCriterion(String ref, boolean ignoreCase)` — finds a criterion by ref
+- `isExposed()` — returns `true` if `@Exposure` metadata is present
+
+---
+
+### Migration Guide
+
+#### 1. `DirectMapping` — existing 4-arg constructor still works
+```java
+// This still compiles thanks to the convenience constructor:
+new DirectMapping("email", "email", String.class, Optional.empty());
+// Equivalent to:
+new DirectMapping("email", "email", String.class, Optional.empty(), Optional.empty(), false);
+```
+
+#### 2. `ProjectionMetadata` — existing 4-arg constructor still works
+```java
+// This still compiles thanks to the convenience constructor:
+new ProjectionMetadata(entityClass, mappings, computeds, providers);
+// Equivalent to:
+new ProjectionMetadata(entityClass, mappings, computeds, providers, new ExposedCriterion[]{}, null);
+```
+
+#### 3. Code using canonical constructors must be updated
+Any code that uses the canonical constructor directly (e.g., generated code in the processor) must add the two new arguments.
+
+---
+
 ## [2.0.1] — Fixed documentation
 
 ### Documentation

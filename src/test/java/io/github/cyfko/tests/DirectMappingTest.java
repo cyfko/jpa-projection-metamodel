@@ -64,4 +64,87 @@ class DirectMappingTest {
         assertEquals(2, mapping.nestingDepth());
         assertEquals("user", mapping.getRootField());
     }
+
+    // ==================== logicalPrefix and cycleBreak tests ====================
+
+    @Test
+    void testConvenienceConstructorDefaults() {
+        DirectMapping mapping = new DirectMapping("email", "email", String.class, Optional.empty());
+
+        // Convenience constructor should set defaults
+        assertEquals(Optional.empty(), mapping.logicalPrefix());
+        assertFalse(mapping.cycleBreak());
+        assertFalse(mapping.isProjectionType());
+    }
+
+    @Test
+    void testComposedProjectionMapping() {
+        DirectMapping mapping = new DirectMapping(
+                "sourceSite", "sourceSite", Object.class, Optional.empty(),
+                Optional.of("SOURCE_SITE"), false
+        );
+
+        assertTrue(mapping.isProjectionType());
+        assertEquals("SOURCE_SITE", mapping.logicalPrefix().orElseThrow());
+        assertFalse(mapping.cycleBreak());
+    }
+
+    @Test
+    void testCycleBreakMapping() {
+        DirectMapping mapping = new DirectMapping(
+                "department", "department", Object.class, Optional.empty(),
+                Optional.of("DEPT"), true
+        );
+
+        assertTrue(mapping.isProjectionType());
+        assertTrue(mapping.cycleBreak());
+    }
+
+    @Test
+    void testLogicalPrefixCannotContainDoubleUnderscore() {
+        assertThrows(IllegalArgumentException.class, () ->
+            new DirectMapping("site", "site", Object.class, Optional.empty(),
+                    Optional.of("SOURCE__SITE"), false)
+        );
+    }
+
+    @Test
+    void testLogicalPrefixCannotStartWithUnderscore() {
+        assertThrows(IllegalArgumentException.class, () ->
+            new DirectMapping("site", "site", Object.class, Optional.empty(),
+                    Optional.of("_SOURCE_SITE"), false)
+        );
+    }
+
+    @Test
+    void testLogicalPrefixCannotEndWithUnderscore() {
+        assertThrows(IllegalArgumentException.class, () ->
+            new DirectMapping("site", "site", Object.class, Optional.empty(),
+                    Optional.of("SOURCE_SITE_"), false)
+        );
+    }
+
+    @Test
+    void testLogicalPrefixCannotBeBlank() {
+        assertThrows(IllegalArgumentException.class, () ->
+            new DirectMapping("site", "site", Object.class, Optional.empty(),
+                    Optional.of("   "), false)
+        );
+    }
+
+    @Test
+    void testLogicalPrefixWithSingleUnderscoreIsValid() {
+        assertDoesNotThrow(() ->
+            new DirectMapping("site", "site", Object.class, Optional.empty(),
+                    Optional.of("SOURCE_SITE"), false)
+        );
+    }
+
+    @Test
+    void testLogicalPrefixNullOptionalRequiresWrapper() {
+        assertThrows(NullPointerException.class, () ->
+            new DirectMapping("site", "site", Object.class, Optional.empty(),
+                    null, false)
+        );
+    }
 }

@@ -3,6 +3,8 @@ package io.github.cyfko.tests;
 import io.github.cyfko.jpametamodel.api.ComputationProvider;
 import io.github.cyfko.jpametamodel.api.ComputedField;
 import io.github.cyfko.jpametamodel.api.DirectMapping;
+import io.github.cyfko.jpametamodel.api.ExposedCriterion;
+import io.github.cyfko.jpametamodel.api.ExposureMetadata;
 import io.github.cyfko.jpametamodel.api.ProjectionMetadata;
 import org.junit.jupiter.api.Test;
 import java.util.List;
@@ -130,4 +132,117 @@ class ProjectionMetadataTest {
         assertTrue(metadata.isDirectMapping("email",false));
         assertFalse(metadata.isDirectMapping("fullName",false));
     }
-}
+
+    // ==================== Exposure Layer tests ====================
+
+    @Test
+    void testConvenienceConstructorSetsDefaults() {
+        ProjectionMetadata metadata = new ProjectionMetadata(
+            Object.class,
+            new DirectMapping[]{},
+            new ComputedField[]{},
+            new ComputationProvider[]{}
+        );
+
+        assertNotNull(metadata.exposedCriteria());
+        assertEquals(0, metadata.exposedCriteria().length);
+        assertNull(metadata.exposure());
+        assertFalse(metadata.isExposed());
+    }
+
+    @Test
+    void testIsExposedWithExposureMetadata() {
+        ProjectionMetadata metadata = new ProjectionMetadata(
+            Object.class,
+            new DirectMapping[]{},
+            new ComputedField[]{},
+            new ComputationProvider[]{},
+            new ExposedCriterion[]{},
+            new ExposureMetadata("users", "api", "WINDOWED")
+        );
+
+        assertTrue(metadata.isExposed());
+        assertEquals("users", metadata.exposure().value());
+    }
+
+    @Test
+    void testGetCriterion() {
+        ExposedCriterion c1 = new ExposedCriterion("NAME", "name", new String[]{"EQ"}, true, false);
+        ExposedCriterion c2 = new ExposedCriterion("SOURCE_SITE__SITE_NAME", "sourceSite.name", new String[]{"MATCHES"}, true, true);
+
+        ProjectionMetadata metadata = new ProjectionMetadata(
+            Object.class,
+            new DirectMapping[]{},
+            new ComputedField[]{},
+            new ComputationProvider[]{},
+            new ExposedCriterion[]{c1, c2},
+            null
+        );
+
+        assertTrue(metadata.getCriterion("NAME", false).isPresent());
+        assertEquals("name", metadata.getCriterion("NAME", false).get().sourcePath());
+
+        assertTrue(metadata.getCriterion("SOURCE_SITE__SITE_NAME", false).isPresent());
+        assertEquals("sourceSite.name", metadata.getCriterion("SOURCE_SITE__SITE_NAME", false).get().sourcePath());
+
+        assertFalse(metadata.getCriterion("NONEXISTENT", false).isPresent());
+    }
+
+    @Test
+    void testGetCriterionIgnoreCase() {
+        ExposedCriterion c1 = new ExposedCriterion("NAME", "name", new String[]{"EQ"}, true, false);
+
+        ProjectionMetadata metadata = new ProjectionMetadata(
+            Object.class,
+            new DirectMapping[]{},
+            new ComputedField[]{},
+            new ComputationProvider[]{},
+            new ExposedCriterion[]{c1},
+            null
+        );
+
+        assertTrue(metadata.getCriterion("name", true).isPresent());
+        assertFalse(metadata.getCriterion("name", false).isPresent());
+    }
+
+    @Test
+    void testGetComposedCriteria() {
+        ExposedCriterion direct = new ExposedCriterion("NAME", "name", new String[]{"EQ"}, true, false);
+        ExposedCriterion composed1 = new ExposedCriterion("ADDR__CITY", "address.city", new String[]{"EQ"}, true, true);
+        ExposedCriterion composed2 = new ExposedCriterion("ADDR__COUNTRY", "address.country", new String[]{"EQ"}, true, true);
+
+        ProjectionMetadata metadata = new ProjectionMetadata(
+            Object.class,
+            new DirectMapping[]{},
+            new ComputedField[]{},
+            new ComputationProvider[]{},
+            new ExposedCriterion[]{direct, composed1, composed2},
+            null
+        );
+
+        List<ExposedCriterion> composed = metadata.getComposedCriteria();
+        assertEquals(2, composed.size());
+        assertTrue(composed.stream().allMatch(ExposedCriterion::isComposed));
+    }
+
+    @Test
+    void testGetProjectionMappings() {
+        DirectMapping scalar = new DirectMapping("email", "email", String.class, Optional.empty());
+        DirectMapping projection = new DirectMapping(
+                "sourceSite", "sourceSite", Object.class, Optional.empty(),
+                Optional.of("SOURCE_SITE"), false
+        );
+
+        ProjectionMetadata metadata = new ProjectionMetadata(
+            Object.class,
+            new DirectMapping[]{scalar, projection},
+            new ComputedField[]{},
+            new ComputationProvider[]{}
+        );
+
+        List<DirectMapping> projections = metadata.getProjectionMappings();
+        assertEquals(1, projections.size());
+        assertEquals("sourceSite", projections.get(0).dtoField());
+        assertTrue(projections.get(0).isProjectionType());
+    }
+}
