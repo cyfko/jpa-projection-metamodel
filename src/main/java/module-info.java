@@ -5,4 +5,5 @@ module io.github.cyfko.jpametamodel {
     exports io.github.cyfko.jpametamodel.api;
     exports io.github.cyfko.jpametamodel.providers;
     exports io.github.cyfko.jpametamodel;
+    requires transitive java.compiler;
 }

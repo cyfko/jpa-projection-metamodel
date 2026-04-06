@@ -48,20 +48,53 @@ public record ExposedCriterion(String ref, String sourcePath, String[] operators
 
 Key methods: `isComposed()`, `compositionDepth()`, `refSegments()`, `supportsOperator(String)`.
 
-#### New record: `ExposureMetadata`
-Runtime metadata for a resource exposure declaration (`@Exposure` annotation).
+#### `ComputedField.MethodReference` — extracted to top-level `MethodReference`
+The inner record `ComputedField.MethodReference` has been **extracted** to a top-level record `io.github.cyfko.jpametamodel.api.MethodReference`. The record is now shared by `ComputedField` and `ExposureMetadata`.
 
 ```java
-public record ExposureMetadata(String value, String namespace, String strategy)
+// Before
+ComputedField.MethodReference ref = new ComputedField.MethodReference(MyClass.class, "compute");
+
+// After
+MethodReference ref = new MethodReference(MyClass.class, "compute");
 ```
 
-Key methods: `hasNamespace()`, `isWindowed()`, `isFull()`, `isCustom()`.
+#### `ExposureMetadata` record — new `pipes` and `handler` components
+The `ExposureMetadata` record now has **5 components** instead of 3:
 
-#### New methods on `ProjectionMetadata`
-- `getComposedCriteria()` — returns only composed (inherited) criteria
-- `getProjectionMappings()` — returns direct mappings whose type is a `@Projection`
-- `getCriterion(String ref, boolean ignoreCase)` — finds a criterion by ref
-- `isExposed()` — returns `true` if `@Exposure` metadata is present
+```java
+// Before
+record ExposureMetadata(String value, String namespace, String strategy)
+
+// After
+record ExposureMetadata(String value, String namespace, String strategy, MethodReference[] pipes, MethodReference handler)
+```
+
+- `pipes` (`MethodReference[]`) — ordered pipeline of query transformation method references. Never null, may be empty.
+- `handler` (`MethodReference`) — custom handler method reference. Nullable (null = implementation-default handler).
+- A **convenience constructor** with the old 3-argument signature is provided, defaulting to `new MethodReference[0]` and `null`.
+- New methods: `hasPipes()`, `hasHandler()`, `pipeCount()`.
+
+---
+
+### Added
+
+#### New record: `MethodReference` (top-level)
+Shared method reference record used across the API for computation methods, transformation pipes, and custom handlers.
+
+```java
+public record MethodReference(Class<?> owner, String methodName)
+```
+
+#### New interface: `MethodSignatureValidator` (SPI)
+SPI for compile-time validation of pipe and handler method references in `@Exposure` annotations. Implementations are discovered via `ServiceLoader`. If absent, the processor performs minimal validation (class exists + method name non-empty).
+
+```java
+public interface MethodSignatureValidator {
+    String validatePipeMethod(TypeElement methodType, String methodName, Elements elements, Types types);
+    String validateHandlerMethod(TypeElement methodType, String methodName, Elements elements, Types types);
+}
+```
 
 ---
 
@@ -83,8 +116,25 @@ new ProjectionMetadata(entityClass, mappings, computeds, providers);
 new ProjectionMetadata(entityClass, mappings, computeds, providers, new ExposedCriterion[]{}, null);
 ```
 
-#### 3. Code using canonical constructors must be updated
-Any code that uses the canonical constructor directly (e.g., generated code in the processor) must add the two new arguments.
+#### 3. `ExposureMetadata` — existing 3-arg constructor still works
+```java
+// This still compiles thanks to the convenience constructor:
+new ExposureMetadata("users", "api", "WINDOWED");
+// Equivalent to:
+new ExposureMetadata("users", "api", "WINDOWED", new MethodReference[0], null);
+```
+
+#### 4. `ComputedField.MethodReference` → `MethodReference`
+```java
+// Before
+import io.github.cyfko.jpametamodel.api.ComputedField.MethodReference; // inner type
+
+// After
+import io.github.cyfko.jpametamodel.api.MethodReference; // top-level type
+```
+
+#### 5. Code using canonical constructors must be updated
+Any code that uses the canonical constructor directly (e.g., generated code in the processor) must add the new arguments.
 
 ---
 

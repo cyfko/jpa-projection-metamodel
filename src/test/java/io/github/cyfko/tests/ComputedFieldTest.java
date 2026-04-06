@@ -1,6 +1,7 @@
 package io.github.cyfko.tests;
 
 import io.github.cyfko.jpametamodel.api.ComputedField;
+import io.github.cyfko.jpametamodel.api.MethodReference;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -25,10 +26,10 @@ class ComputedFieldTest {
 
         // Empty reducers with null computedBy is valid
         assertDoesNotThrow(
-                () -> new ComputedField("field", new String[] { "truc" }, new ComputedField.ReducerMapping[0], (ComputedField.MethodReference) null, null));
+                () -> new ComputedField("field", new String[] { "truc" }, new ComputedField.ReducerMapping[0], (MethodReference) null, null));
 
         assertDoesNotThrow(() -> new ComputedField("field", new String[] { "something" },
-                new ComputedField.ReducerMapping[0], (ComputedField.MethodReference) null, null));
+                new ComputedField.ReducerMapping[0], (MethodReference) null, null));
     }
 
     @Test

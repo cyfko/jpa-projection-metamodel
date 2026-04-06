@@ -8,36 +8,38 @@ import java.util.Objects;
  *
  * <p>
  * This record captures the abstract concepts of resource identity, logical grouping,
- * and result cardinality strategy. It is intentionally agnostic of transport protocol,
- * delivery mechanism, and response format — each implementation translates these
- * concepts into whatever is meaningful in its context.
+ * result cardinality strategy, transformation pipeline, and custom handler. It is
+ * intentionally agnostic of transport protocol, delivery mechanism, and response
+ * format — each implementation translates these concepts into whatever is meaningful
+ * in its context.
  * </p>
  *
  * <p><b>Example:</b></p>
  * <pre>{@code
  * // From the annotation:
- * @Exposure(value = "products", namespace = "catalog", strategy = Strategy.WINDOWED)
+ * @Exposure(
+ *     value = "products",
+ *     namespace = "catalog",
+ *     strategy = Strategy.WINDOWED,
+ *     pipes = { @Method(type = TenantFilter.class, value = "enforceCurrentTenant") },
+ *     handler = @Method(type = ReportService.class, value = "generate")
+ * )
  *
  * // Produces:
- * new ExposureMetadata("products", "catalog", "WINDOWED")
+ * new ExposureMetadata("products", "catalog", "WINDOWED",
+ *     new MethodReference[]{ new MethodReference(TenantFilter.class, "enforceCurrentTenant") },
+ *     new MethodReference(ReportService.class, "generate"))
  * }</pre>
  *
  * @param value     logical resource name (e.g. {@code "users"}, {@code "products"}).
- *                  Implementations derive a concrete identifier from this value
- *                  (REST path, GraphQL query type, messaging topic, etc.)
- * @param namespace logical namespace grouping related resources (e.g. {@code "api"}, {@code "admin"}).
- *                  May be empty if no namespace is specified.
- * @param strategy  result cardinality strategy — one of {@code "WINDOWED"}, {@code "FULL"},
- *                  or {@code "CUSTOM"}. Defines the intent regarding how much of the matching
- *                  result set is returned.
+ * @param namespace logical namespace grouping related resources. May be empty.
+ * @param strategy  result cardinality strategy — one of {@code "WINDOWED"}, {@code "FULL"}, or {@code "CUSTOM"}.
+ * @param pipes     ordered pipeline of query transformation method references. Never null, may be empty.
+ * @param handler   custom handler method reference, or {@code null} if the implementation generates a default handler.
  * @author Frank KOSSI
  * @since 3.0.0
  */
-public record ExposureMetadata(
-        String value,
-        String namespace,
-        String strategy
-) {
+public record ExposureMetadata(String value, String namespace, String strategy, MethodReference[] pipes, MethodReference handler) {
 
     /**
      * Compact constructor enforcing invariants.
@@ -46,7 +48,8 @@ public record ExposureMetadata(
         Objects.requireNonNull(value, "value cannot be null");
         Objects.requireNonNull(namespace, "namespace cannot be null");
         Objects.requireNonNull(strategy, "strategy cannot be null");
-
+        Objects.requireNonNull(pipes, "pipes cannot be null");
+        // handler may be null (no custom handler)
         if (value.isBlank()) {
             throw new IllegalArgumentException("value cannot be blank");
         }
@@ -56,12 +59,46 @@ public record ExposureMetadata(
     }
 
     /**
+     * Compatibility constructor for projections without pipes or handler.
+     */
+    public ExposureMetadata(String value, String namespace, String strategy) {
+        this(value, namespace, strategy, new MethodReference[0], null);
+    }
+
+    /**
      * Checks if this exposure has a non-empty namespace.
      *
      * @return {@code true} if the namespace is specified and non-empty
      */
     public boolean hasNamespace() {
         return !namespace.isBlank();
+    }
+
+    /**
+     * Checks if this exposure defines a transformation pipeline.
+     *
+     * @return {@code true} if at least one pipe is declared
+     */
+    public boolean hasPipes() {
+        return pipes.length > 0;
+    }
+
+    /**
+     * Returns the number of pipes in the transformation pipeline.
+     *
+     * @return pipe count
+     */
+    public int pipeCount() {
+        return pipes.length;
+    }
+
+    /**
+     * Checks if this exposure declares a custom handler.
+     *
+     * @return {@code true} if a handler method reference is present
+     */
+    public boolean hasHandler() {
+        return handler != null;
     }
 
     /**

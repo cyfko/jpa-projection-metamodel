@@ -166,35 +166,6 @@ public record ComputedField(String dtoField,
     }
 
     /**
-     * Metadata describing the Java method used to compute a {@link ComputedField}.
-     * <p>
-     * Both components are optional individually, but at least one of
-     * {@code owner}
-     * or {@code methodName} must be non-null. This allows:
-     * </p>
-     * <ul>
-     * <li>a known class with convention-based method resolution,</li>
-     * <li>a known method name on a default resolver, or</li>
-     * <li>a fully specified {@code (class, method)} pair.</li>
-     * </ul>
-     *
-     * @param owner      target class holding the compute method, or {@code null}
-     *                   if resolved elsewhere
-     * @param methodName name of the compute method, or {@code null} if resolved by
-     *                   convention
-     */
-    public record MethodReference(
-            Class<?> owner, // target class, or null
-            String methodName // method name, or null
-    ) {
-        public MethodReference {
-            if (owner == null || methodName == null) {
-                throw new IllegalArgumentException("neither method or owning class can be null.");
-            }
-        }
-    }
-
-    /**
      * Maps a reducer to its target dependency index.
      * <p>
      * Each reducer applies to a specific collection dependency identified by its
