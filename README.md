@@ -403,16 +403,24 @@ Runtime metadata for a queryable resource declaration (`@Exposure` annotation).
 
 ```java
 import io.github.cyfko.jpametamodel.api.ExposureMetadata;
+import io.github.cyfko.jpametamodel.api.MethodReference;
 
 ExposureMetadata exposure = new ExposureMetadata(
     "products",   // resource name
     "catalog",    // namespace
-    "WINDOWED"    // strategy
+    "WINDOWED",   // strategy
+    new MethodReference[]{ new MethodReference(SecurityUtils.class, "enforceTenant") }, // pipes
+    new MethodReference("ReportService", "customQuery") // handler
 );
 
 exposure.isWindowed();    // true
 exposure.hasNamespace();  // true
 ```
+
+### `MethodSignatureValidator` SPI
+
+You can implement custom validation rules for `@Exposure` pipes and handlers by implementing the `MethodSignatureValidator` SPI and registering it via `META-INF/services/io.github.cyfko.jpametamodel.providers.MethodSignatureValidator`. The main annotation processor will invoke your validator to ensure signatures match your specific implementation constraints.
+
 
 ### Accessing Exposure Data via `ProjectionMetadata`
 
